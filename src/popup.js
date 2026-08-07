@@ -23,7 +23,6 @@ function renderResources(resources) {
   resources.forEach((resource, index) => {
     const row = document.createElement("label");
     row.className = "resource";
-
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = true;
@@ -33,7 +32,6 @@ function renderResources(resources) {
     const name = document.createElement("div");
     name.className = "resource-name";
     name.textContent = resource.fileName;
-
     const url = document.createElement("div");
     url.className = "resource-url";
     url.textContent = resource.url;
@@ -54,6 +52,10 @@ function getSelectedResources() {
     .filter(Boolean);
 }
 
+function generateIssueCode() {
+  return `RAIN-${Date.now()}`;
+}
+
 async function scanCurrentPage() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   const response = await chrome.tabs.sendMessage(tab.id, { type: "RAIN_SCAN_PAGE" });
@@ -71,13 +73,6 @@ saveServerButton.addEventListener("click", async () => {
 });
 
 importButton.addEventListener("click", async () => {
-  try {
-    await checkRainLogin();
-  } catch (error) {
-    setStatus(error.message);
-    return;
-  }
-
   const selected = getSelectedResources();
   if (!selected.length) {
     setStatus("请至少选择一个资源");
@@ -87,12 +82,17 @@ importButton.addEventListener("click", async () => {
   importButton.disabled = true;
 
   try {
+    await checkRainLogin();
+
+    const issueCode = generateIssueCode();
+    await createIssue(issueCode, `Browser Import ${new Date().toISOString()}`);
+
     for (let index = 0; index < selected.length; index += 1) {
-      setStatus(`正在下载并导入 ${index + 1}/${selected.length}: ${selected[index].fileName}`);
-      await importBrowserFile(selected[index]);
+      setStatus(`正在下载并上传 ${index + 1}/${selected.length}: ${selected[index].fileName}`);
+      await uploadBrowserFile(issueCode, selected[index]);
     }
 
-    setStatus("导入完成");
+    setStatus(`导入完成: ${issueCode}`);
   } catch (error) {
     setStatus(`导入失败: ${error.message}`);
   }
