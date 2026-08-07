@@ -1,4 +1,5 @@
 const DEFAULT_RAIN_URL = "http://127.0.0.1:8080";
+const RAIN_BROWSER_HEADER = "X-Rain-Browser";
 
 async function getRainServerUrl() {
   const result = await chrome.storage.sync.get({ rainServerUrl: DEFAULT_RAIN_URL });
@@ -15,33 +16,47 @@ async function setRainServerUrl(url) {
   return normalized;
 }
 
+async function readErrorDetail(response) {
+  try {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await response.json();
+      return body?.message || body?.code || JSON.stringify(body);
+    }
+    return await response.text();
+  } catch (_) {
+    return "";
+  }
+}
+
 async function checkRainLogin() {
   const rainServerUrl = await getRainServerUrl();
-
-  const response = await fetch(`${rainServerUrl}/api/me`, {
+  const response = await fetch(`${rainServerUrl}/api/auth/me`, {
     method: "GET",
     credentials: "include"
   });
 
-  if (response.status === 401) {
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new Error(`Rain login check failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
+  }
+
+  const session = await response.json();
+  if (!session?.authenticated || !session?.user) {
     throw new Error("请先登录 Rain");
   }
 
-  if (!response.ok) {
-    throw new Error(`Rain login check failed: HTTP ${response.status}`);
-  }
-
-  return response.json();
+  return session.user;
 }
 
 async function createIssue(issueCode, issueName) {
   const rainServerUrl = await getRainServerUrl();
-
   const response = await fetch(`${rainServerUrl}/api/issues`, {
     method: "POST",
     credentials: "include",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      [RAIN_BROWSER_HEADER]: "1"
     },
     body: JSON.stringify({
       code: issueCode,
@@ -50,40 +65,49 @@ async function createIssue(issueCode, issueName) {
   });
 
   if (!response.ok) {
-    const detail = await response.text();
+    const detail = await readErrorDetail(response);
     throw new Error(`Create issue failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
   }
 
   return response.json();
 }
 
-async function uploadBrowserFile(issueCode, resource) {
-  const rainServerUrl = await getRainServerUrl();
-
-  const fileResponse = await fetch(resource.url, {
+async function downloadBrowserResource(resource) {
+  const response = await fetch(resource.url, {
+    method: "GET",
     credentials: "include"
   });
 
-  if (!fileResponse.ok) {
-    throw new Error(`Browser download failed: HTTP ${fileResponse.status}`);
+  if (!response.ok) {
+    throw new Error(`Browser download failed: HTTP ${response.status}`);
   }
 
-  const blob = await fileResponse.blob();
-  const file = new File([blob], resource.fileName, {
+  const blob = await response.blob();
+  return new File([blob], resource.fileName, {
     type: blob.type || "application/octet-stream"
   });
+}
 
+async function uploadBrowserFile(issueCode, resource) {
+  const rainServerUrl = await getRainServerUrl();
+  const file = await downloadBrowserResource(resource);
   const form = new FormData();
   form.append("file", file);
 
-  const response = await fetch(`${rainServerUrl}/api/issues/${encodeURIComponent(issueCode)}/uploads`, {
-    method: "POST",
-    credentials: "include",
-    body: form
-  });
+  const response = await fetch(
+    `${rainServerUrl}/api/issues/${encodeURIComponent(issueCode)}/uploads`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        [RAIN_BROWSER_HEADER]: "1"
+      },
+      body: form
+    }
+  );
 
   if (!response.ok) {
-    const detail = await response.text();
+    const detail = await readErrorDetail(response);
     throw new Error(`Upload failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
   }
 
