@@ -30,7 +30,6 @@ function renderResources(resources) {
     checkbox.dataset.index = String(index);
 
     const content = document.createElement("div");
-
     const name = document.createElement("div");
     name.className = "resource-name";
     name.textContent = resource.fileName;
@@ -56,20 +55,9 @@ function getSelectedResources() {
 }
 
 async function scanCurrentPage() {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) {
-      throw new Error("Unable to resolve active tab");
-    }
-
-    const response = await chrome.tabs.sendMessage(tab.id, { type: "RAIN_SCAN_PAGE" });
-    const resources = response?.resources || [];
-    renderResources(resources);
-    setStatus(`发现 ${resources.length} 个可导入资源`);
-  } catch (error) {
-    renderResources([]);
-    setStatus(`扫描失败：${error.message}`);
-  }
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const response = await chrome.tabs.sendMessage(tab.id, { type: "RAIN_SCAN_PAGE" });
+  renderResources(response?.resources || []);
 }
 
 saveServerButton.addEventListener("click", async () => {
@@ -83,6 +71,13 @@ saveServerButton.addEventListener("click", async () => {
 });
 
 importButton.addEventListener("click", async () => {
+  try {
+    await checkRainLogin();
+  } catch (error) {
+    setStatus(error.message);
+    return;
+  }
+
   const selected = getSelectedResources();
   if (!selected.length) {
     setStatus("请至少选择一个资源");
@@ -90,23 +85,18 @@ importButton.addEventListener("click", async () => {
   }
 
   importButton.disabled = true;
-  let succeeded = 0;
 
-  for (let index = 0; index < selected.length; index += 1) {
-    const resource = selected[index];
-    setStatus(`正在导入 ${index + 1}/${selected.length}: ${resource.fileName}`);
-
-    try {
-      await importUrlToRain(resource);
-      succeeded += 1;
-    } catch (error) {
-      setStatus(`导入失败：${resource.fileName} - ${error.message}`);
-      importButton.disabled = false;
-      return;
+  try {
+    for (let index = 0; index < selected.length; index += 1) {
+      setStatus(`正在导入 ${index + 1}/${selected.length}: ${selected[index].fileName}`);
+      await importUrlToRain(selected[index]);
     }
+
+    setStatus("导入完成");
+  } catch (error) {
+    setStatus(`导入失败: ${error.message}`);
   }
 
-  setStatus(`导入完成：${succeeded}/${selected.length}`);
   importButton.disabled = false;
 });
 
