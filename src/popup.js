@@ -88,8 +88,8 @@ importButton.addEventListener("click", async () => {
 
   try {
     for (let index = 0; index < selected.length; index += 1) {
-      setStatus(`正在导入 ${index + 1}/${selected.length}: ${selected[index].fileName}`);
-      await importUrlToRain(selected[index]);
+      setStatus(`正在下载并导入 ${index + 1}/${selected.length}: ${selected[index].fileName}`);
+      await importBrowserFile(selected[index]);
     }
 
     setStatus("导入完成");
