@@ -49,6 +49,27 @@ async function checkRainLogin() {
   return session.user;
 }
 
+async function listRainIssues() {
+  const rainServerUrl = await getRainServerUrl();
+  const response = await fetch(`${rainServerUrl}/api/issues`, {
+    method: "GET",
+    credentials: "include"
+  });
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new Error(`Load issues failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
+  }
+
+  const issues = await response.json();
+  return Array.isArray(issues) ? issues : [];
+}
+
+async function listWritableIssues() {
+  const issues = await listRainIssues();
+  return issues.filter((issue) => issue?.can_write === true);
+}
+
 async function createIssue(issueCode, issueName) {
   const rainServerUrl = await getRainServerUrl();
   const response = await fetch(`${rainServerUrl}/api/issues`, {
