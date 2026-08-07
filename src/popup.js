@@ -1,10 +1,17 @@
 let currentResources = [];
+let writableIssues = [];
+let allIssues = [];
 
 const statusEl = document.getElementById("status");
 const resourcesEl = document.getElementById("resources");
 const importButton = document.getElementById("importButton");
 const serverUrlInput = document.getElementById("serverUrl");
 const saveServerButton = document.getElementById("saveServer");
+const issueSelect = document.getElementById("issueSelect");
+const issueHint = document.getElementById("issueHint");
+const newIssueFields = document.getElementById("newIssueFields");
+const newIssueCodeInput = document.getElementById("newIssueCode");
+const newIssueNameInput = document.getElementById("newIssueName");
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -54,8 +61,117 @@ function getSelectedResources() {
     .filter(Boolean);
 }
 
-function generateIssueCode() {
+function generateFallbackIssueCode() {
   return `RAIN-${Date.now()}`;
+}
+
+function inferIssueCode() {
+  const first = currentResources[0];
+  if (!first) {
+    return null;
+  }
+
+  const candidates = [first.pageTitle, first.pageUrl, first.text]
+    .filter(Boolean)
+    .join(" ");
+  const match = candidates.match(/\b([A-Za-z][A-Za-z0-9]{1,15}-\d{1,10})\b/);
+  return match ? match[1].toUpperCase() : null;
+}
+
+function inferIssueName() {
+  const title = currentResources[0]?.pageTitle?.trim();
+  if (title) {
+    return title.slice(0, 128);
+  }
+  return `Browser Import ${new Date().toISOString()}`;
+}
+
+function validateIssueCode(code) {
+  return /^[A-Za-z0-9._-]{1,64}$/.test(code);
+}
+
+function prefillNewIssue(force = false) {
+  const inferredCode = inferIssueCode();
+  const inferredExists = inferredCode
+    ? allIssues.some((issue) => String(issue.code).toUpperCase() === inferredCode)
+    : false;
+
+  if (force || !newIssueCodeInput.value.trim()) {
+    newIssueCodeInput.value = inferredCode && !inferredExists
+      ? inferredCode
+      : generateFallbackIssueCode();
+  }
+
+  if (force || !newIssueNameInput.value.trim()) {
+    newIssueNameInput.value = inferIssueName();
+  }
+}
+
+function updateIssueMode() {
+  const creating = issueSelect.value === "__new__";
+  newIssueFields.classList.toggle("hidden", !creating);
+  if (creating) {
+    prefillNewIssue(false);
+  }
+}
+
+function renderIssueOptions() {
+  const previousValue = issueSelect.value;
+  issueSelect.innerHTML = '<option value="__new__">新建 Issue</option>';
+
+  writableIssues.forEach((issue) => {
+    const option = document.createElement("option");
+    option.value = issue.code;
+    option.textContent = issue.name ? `${issue.code} — ${issue.name}` : issue.code;
+    issueSelect.appendChild(option);
+  });
+
+  const inferredCode = inferIssueCode();
+  const inferredWritable = inferredCode
+    ? writableIssues.find((issue) => String(issue.code).toUpperCase() === inferredCode)
+    : null;
+  const inferredAny = inferredCode
+    ? allIssues.find((issue) => String(issue.code).toUpperCase() === inferredCode)
+    : null;
+
+  if (inferredWritable) {
+    issueSelect.value = inferredWritable.code;
+    issueHint.textContent = `已根据当前页面匹配到你的 Issue：${inferredWritable.code}`;
+  } else if (previousValue && [...issueSelect.options].some((option) => option.value === previousValue)) {
+    issueSelect.value = previousValue;
+    issueHint.textContent = `仅显示当前用户拥有上传权限的 ${writableIssues.length} 个 Issue。`;
+  } else {
+    issueSelect.value = "__new__";
+    prefillNewIssue(true);
+    if (inferredAny && inferredAny.can_write !== true) {
+      issueHint.textContent = `页面识别到 ${inferredCode}，但当前用户没有写权限，将新建 Issue。`;
+    } else if (inferredCode) {
+      issueHint.textContent = `页面识别到 ${inferredCode}，未找到可写的同名 Issue，将新建 Issue。`;
+    } else {
+      issueHint.textContent = `可选择当前用户拥有的 ${writableIssues.length} 个 Issue，或新建 Issue。`;
+    }
+  }
+
+  updateIssueMode();
+}
+
+async function refreshIssueTargets() {
+  try {
+    await checkRainLogin();
+    allIssues = await listRainIssues();
+    writableIssues = allIssues.filter((issue) => issue?.can_write === true);
+    renderIssueOptions();
+  } catch (error) {
+    allIssues = [];
+    writableIssues = [];
+    issueSelect.innerHTML = '<option value="__new__">新建 Issue</option>';
+    issueSelect.value = "__new__";
+    prefillNewIssue(true);
+    updateIssueMode();
+    issueHint.textContent = error.message === "请先登录 Rain"
+      ? "登录 Rain 后可选择你拥有的已有 Issue。"
+      : `无法加载 Issue：${error.message}`;
+  }
 }
 
 async function scanCurrentPage() {
@@ -88,11 +204,47 @@ async function requireRainLogin() {
   }
 }
 
+async function resolveTargetIssue() {
+  if (issueSelect.value === "__new__") {
+    const issueCode = newIssueCodeInput.value.trim().toUpperCase();
+    const issueName = newIssueNameInput.value.trim();
+
+    if (!validateIssueCode(issueCode)) {
+      throw new Error("Issue Code 只能包含字母、数字、'.'、'_'、'-'，长度 1-64");
+    }
+    if (!issueName || issueName.length > 128) {
+      throw new Error("Issue Name 长度必须为 1-128");
+    }
+
+    setStatus(`正在创建 ${issueCode}`);
+    await createIssue(issueCode, issueName);
+    return issueCode;
+  }
+
+  const latestWritable = await listWritableIssues();
+  const selectedIssue = latestWritable.find((issue) => issue.code === issueSelect.value);
+  if (!selectedIssue) {
+    throw new Error("该 Issue 已不属于当前用户或当前用户已无上传权限，请刷新后重试");
+  }
+
+  return selectedIssue.code;
+}
+
+issueSelect.addEventListener("change", () => {
+  updateIssueMode();
+  if (issueSelect.value === "__new__") {
+    issueHint.textContent = "将创建新的 Rain Issue 后上传文件。";
+  } else {
+    issueHint.textContent = `将上传到你的 Issue：${issueSelect.value}`;
+  }
+});
+
 saveServerButton.addEventListener("click", async () => {
   try {
     const savedUrl = await setRainServerUrl(serverUrlInput.value);
     serverUrlInput.value = savedUrl;
     setStatus("Rain 地址已保存");
+    await refreshIssueTargets();
   } catch (error) {
     setStatus(error.message);
   }
@@ -109,9 +261,8 @@ importButton.addEventListener("click", async () => {
 
   try {
     const user = await requireRainLogin();
-    const issueCode = generateIssueCode();
-    setStatus(`已登录 ${user.username}，正在创建 ${issueCode}`);
-    await createIssue(issueCode, `Browser Import ${new Date().toISOString()}`);
+    const issueCode = await resolveTargetIssue();
+    setStatus(`已登录 ${user.username}，目标 Issue：${issueCode}`);
 
     for (let index = 0; index < selected.length; index += 1) {
       setStatus(`正在下载并上传 ${index + 1}/${selected.length}: ${selected[index].fileName}`);
@@ -119,6 +270,7 @@ importButton.addEventListener("click", async () => {
     }
 
     setStatus(`导入完成: ${issueCode}`);
+    await refreshIssueTargets();
   } catch (error) {
     setStatus(`导入失败: ${error.message}`);
   } finally {
@@ -129,4 +281,5 @@ importButton.addEventListener("click", async () => {
 (async function init() {
   serverUrlInput.value = await getRainServerUrl();
   await scanCurrentPage();
+  await refreshIssueTargets();
 })();
