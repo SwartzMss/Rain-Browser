@@ -161,7 +161,7 @@ Content-Type: multipart/form-data
 X-Rain-Browser: 1
 ```
 
-文件通过 multipart 的 `file` 字段上传，之后继续进入 Rain 原有的后台解压、索引和处理流程。
+文件通过 multipart 的 `files` 字段上传，之后继续进入 Rain 原有的后台解压、索引和处理流程。
 
 ## 安全设计
 
@@ -349,7 +349,7 @@ Content-Type: multipart/form-data
 X-Rain-Browser: 1
 ```
 
-The file is uploaded through the multipart `file` field and then continues through Rain's normal background extraction, indexing, and processing pipeline.
+The file is uploaded through the multipart `files` field and then continues through Rain's normal background extraction, indexing, and processing pipeline.
 
 ## Security Model
 
