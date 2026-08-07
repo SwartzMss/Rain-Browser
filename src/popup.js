@@ -23,6 +23,7 @@ function renderResources(resources) {
   resources.forEach((resource, index) => {
     const row = document.createElement("label");
     row.className = "resource";
+
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = true;
@@ -32,6 +33,7 @@ function renderResources(resources) {
     const name = document.createElement("div");
     name.className = "resource-name";
     name.textContent = resource.fileName;
+
     const url = document.createElement("div");
     url.className = "resource-url";
     url.textContent = resource.url;
@@ -57,9 +59,33 @@ function generateIssueCode() {
 }
 
 async function scanCurrentPage() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const response = await chrome.tabs.sendMessage(tab.id, { type: "RAIN_SCAN_PAGE" });
-  renderResources(response?.resources || []);
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      throw new Error("无法获取当前页面");
+    }
+
+    const response = await chrome.tabs.sendMessage(tab.id, { type: "RAIN_SCAN_PAGE" });
+    const resources = response?.resources || [];
+    renderResources(resources);
+    setStatus(`发现 ${resources.length} 个可导入资源`);
+  } catch (error) {
+    renderResources([]);
+    setStatus(`扫描失败: ${error.message}`);
+  }
+}
+
+async function requireRainLogin() {
+  try {
+    return await checkRainLogin();
+  } catch (error) {
+    if (error.message === "请先登录 Rain") {
+      const rainServerUrl = await getRainServerUrl();
+      await chrome.tabs.create({ url: rainServerUrl, active: true });
+      throw new Error("请先登录 Rain，已为你打开 Rain 页面");
+    }
+    throw error;
+  }
 }
 
 saveServerButton.addEventListener("click", async () => {
@@ -82,9 +108,9 @@ importButton.addEventListener("click", async () => {
   importButton.disabled = true;
 
   try {
-    await checkRainLogin();
-
+    const user = await requireRainLogin();
     const issueCode = generateIssueCode();
+    setStatus(`已登录 ${user.username}，正在创建 ${issueCode}`);
     await createIssue(issueCode, `Browser Import ${new Date().toISOString()}`);
 
     for (let index = 0; index < selected.length; index += 1) {
@@ -95,9 +121,9 @@ importButton.addEventListener("click", async () => {
     setStatus(`导入完成: ${issueCode}`);
   } catch (error) {
     setStatus(`导入失败: ${error.message}`);
+  } finally {
+    importButton.disabled = false;
   }
-
-  importButton.disabled = false;
 });
 
 (async function init() {
