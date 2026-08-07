@@ -1,4 +1,4 @@
-const DEFAULT_RAIN_URL = "http://127.0.0.1:8000";
+const DEFAULT_RAIN_URL = "http://127.0.0.1:8080";
 
 async function getRainServerUrl() {
   const result = await chrome.storage.sync.get({ rainServerUrl: DEFAULT_RAIN_URL });
@@ -34,7 +34,30 @@ async function checkRainLogin() {
   return response.json();
 }
 
-async function importBrowserFile(resource) {
+async function createIssue(issueCode, issueName) {
+  const rainServerUrl = await getRainServerUrl();
+
+  const response = await fetch(`${rainServerUrl}/api/issues`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      code: issueCode,
+      name: issueName
+    })
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Create issue failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
+  }
+
+  return response.json();
+}
+
+async function uploadBrowserFile(issueCode, resource) {
   const rainServerUrl = await getRainServerUrl();
 
   const fileResponse = await fetch(resource.url, {
@@ -52,18 +75,16 @@ async function importBrowserFile(resource) {
 
   const form = new FormData();
   form.append("file", file);
-  form.append("source", "rain-browser");
-  form.append("pageUrl", resource.pageUrl || "");
-  form.append("pageTitle", resource.pageTitle || "");
 
-  const response = await fetch(`${rainServerUrl}/api/upload`, {
+  const response = await fetch(`${rainServerUrl}/api/issues/${encodeURIComponent(issueCode)}/uploads`, {
     method: "POST",
     credentials: "include",
     body: form
   });
 
   if (!response.ok) {
-    throw new Error(`Rain upload failed: HTTP ${response.status}`);
+    const detail = await response.text();
+    throw new Error(`Upload failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
   }
 
   const contentType = response.headers.get("content-type") || "";
