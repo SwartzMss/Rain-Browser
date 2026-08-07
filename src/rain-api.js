@@ -1,0 +1,50 @@
+const DEFAULT_RAIN_URL = "http://127.0.0.1:8000";
+
+async function getRainServerUrl() {
+  const result = await chrome.storage.sync.get({ rainServerUrl: DEFAULT_RAIN_URL });
+  return String(result.rainServerUrl || DEFAULT_RAIN_URL).replace(/\/$/, "");
+}
+
+async function setRainServerUrl(url) {
+  const normalized = String(url || "").trim().replace(/\/$/, "");
+  if (!/^https?:\/\//i.test(normalized)) {
+    throw new Error("Rain server URL must start with http:// or https://");
+  }
+
+  await chrome.storage.sync.set({ rainServerUrl: normalized });
+  return normalized;
+}
+
+async function importUrlToRain(resource) {
+  const rainServerUrl = await getRainServerUrl();
+  const response = await fetch(`${rainServerUrl}/api/import/url`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      url: resource.url,
+      filename: resource.fileName,
+      source: "rain-browser",
+      pageUrl: resource.pageUrl,
+      pageTitle: resource.pageTitle
+    })
+  });
+
+  if (!response.ok) {
+    let detail = "";
+    try {
+      detail = await response.text();
+    } catch (_) {
+      // Keep the HTTP status as the primary failure reason.
+    }
+    throw new Error(`Rain import failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  return { ok: true };
+}
