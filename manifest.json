@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rain Browser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Import web-hosted logs and diagnostic files directly into Rain.",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": ["<all_urls>"],
