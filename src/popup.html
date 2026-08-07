@@ -6,7 +6,7 @@
   <title>Rain Browser</title>
   <style>
     body {
-      width: 360px;
+      width: 380px;
       margin: 0;
       padding: 16px;
       box-sizing: border-box;
@@ -27,12 +27,13 @@
       flex: 1;
       min-width: 0;
     }
-    input, button {
+    input, select, button {
       box-sizing: border-box;
       border: 1px solid #d0d7de;
       border-radius: 6px;
       padding: 8px;
       font-size: 13px;
+      background: #ffffff;
     }
     button {
       cursor: pointer;
@@ -49,13 +50,46 @@
       cursor: not-allowed;
       opacity: 0.55;
     }
+    .target-card {
+      margin-bottom: 12px;
+      padding: 10px;
+      border: 1px solid #d8dee4;
+      border-radius: 8px;
+      background: #f6f8fa;
+    }
+    .target-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    #issueSelect {
+      width: 100%;
+    }
+    #issueHint {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #57606a;
+      line-height: 1.4;
+    }
+    .new-issue-fields {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .new-issue-fields input {
+      width: 100%;
+    }
+    .hidden {
+      display: none;
+    }
     #status {
       margin: 10px 0;
       font-size: 12px;
       color: #57606a;
     }
     #resources {
-      max-height: 280px;
+      max-height: 260px;
       overflow-y: auto;
       border-top: 1px solid #d8dee4;
     }
@@ -90,6 +124,18 @@
   <div class="server">
     <input id="serverUrl" type="text" placeholder="Rain server URL" />
     <button id="saveServer">保存</button>
+  </div>
+
+  <div class="target-card">
+    <label class="target-label" for="issueSelect">目标 Issue</label>
+    <select id="issueSelect">
+      <option value="__new__">新建 Issue</option>
+    </select>
+    <div id="issueHint">登录 Rain 后可选择你拥有的已有 Issue。</div>
+    <div id="newIssueFields" class="new-issue-fields">
+      <input id="newIssueCode" type="text" maxlength="64" placeholder="Issue Code" />
+      <input id="newIssueName" type="text" maxlength="128" placeholder="Issue Name" />
+    </div>
   </div>
 
   <div id="status">正在扫描当前页面…</div>
