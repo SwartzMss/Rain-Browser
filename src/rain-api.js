@@ -92,7 +92,7 @@ async function uploadBrowserFile(issueCode, resource) {
   const rainServerUrl = await getRainServerUrl();
   const file = await downloadBrowserResource(resource);
   const form = new FormData();
-  form.append("file", file);
+  form.append("files", file);
 
   const response = await fetch(
     `${rainServerUrl}/api/issues/${encodeURIComponent(issueCode)}/uploads`,
