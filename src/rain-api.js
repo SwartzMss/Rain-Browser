@@ -15,10 +15,31 @@ async function setRainServerUrl(url) {
   return normalized;
 }
 
+async function checkRainLogin() {
+  const rainServerUrl = await getRainServerUrl();
+
+  const response = await fetch(`${rainServerUrl}/api/me`, {
+    method: "GET",
+    credentials: "include"
+  });
+
+  if (response.status === 401) {
+    throw new Error("请先登录 Rain");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Rain login check failed: HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
 async function importUrlToRain(resource) {
   const rainServerUrl = await getRainServerUrl();
-  const response = await fetch(`${rainServerUrl}/api/import/url`, {
+
+  const response = await fetch(`${rainServerUrl}/api/import/browser`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json"
     },
@@ -36,7 +57,6 @@ async function importUrlToRain(resource) {
     try {
       detail = await response.text();
     } catch (_) {
-      // Keep the HTTP status as the primary failure reason.
     }
     throw new Error(`Rain import failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
   }
