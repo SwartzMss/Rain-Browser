@@ -34,37 +34,38 @@ async function checkRainLogin() {
   return response.json();
 }
 
-async function importUrlToRain(resource) {
+async function importBrowserFile(resource) {
   const rainServerUrl = await getRainServerUrl();
 
-  const response = await fetch(`${rainServerUrl}/api/import/browser`, {
+  const fileResponse = await fetch(resource.url, {
+    credentials: "include"
+  });
+
+  if (!fileResponse.ok) {
+    throw new Error(`Browser download failed: HTTP ${fileResponse.status}`);
+  }
+
+  const blob = await fileResponse.blob();
+  const file = new File([blob], resource.fileName, {
+    type: blob.type || "application/octet-stream"
+  });
+
+  const form = new FormData();
+  form.append("file", file);
+  form.append("source", "rain-browser");
+  form.append("pageUrl", resource.pageUrl || "");
+  form.append("pageTitle", resource.pageTitle || "");
+
+  const response = await fetch(`${rainServerUrl}/api/upload`, {
     method: "POST",
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      url: resource.url,
-      filename: resource.fileName,
-      source: "rain-browser",
-      pageUrl: resource.pageUrl,
-      pageTitle: resource.pageTitle
-    })
+    body: form
   });
 
   if (!response.ok) {
-    let detail = "";
-    try {
-      detail = await response.text();
-    } catch (_) {
-    }
-    throw new Error(`Rain import failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
+    throw new Error(`Rain upload failed: HTTP ${response.status}`);
   }
 
   const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    return response.json();
-  }
-
-  return { ok: true };
+  return contentType.includes("application/json") ? response.json() : { ok: true };
 }
