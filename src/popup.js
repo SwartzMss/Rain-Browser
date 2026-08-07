@@ -174,6 +174,47 @@ async function refreshIssueTargets() {
   }
 }
 
+function isRestrictedPageUrl(url) {
+  return /^(chrome|edge|about|devtools|chrome-extension|view-source):/i.test(url || "");
+}
+
+async function requestPageScan(tabId) {
+  return chrome.tabs.sendMessage(tabId, { type: "RAIN_SCAN_PAGE" });
+}
+
+async function requestPageScanWithInjection(tab) {
+  try {
+    return await requestPageScan(tab.id);
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    const missingReceiver = message.includes("Receiving end does not exist")
+      || message.includes("Could not establish connection");
+
+    if (!missingReceiver) {
+      throw error;
+    }
+
+    if (isRestrictedPageUrl(tab.url)) {
+      throw new Error("当前是浏览器内部页面，Chrome/Edge 不允许扩展扫描此页面");
+    }
+
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["src/content.js"]
+      });
+    } catch (injectError) {
+      const injectMessage = String(injectError?.message || injectError || "");
+      if (String(tab.url || "").startsWith("file://")) {
+        throw new Error("无法扫描本地文件页面，请在扩展详情中开启“允许访问文件网址”");
+      }
+      throw new Error(`当前页面不允许扩展注入扫描脚本: ${injectMessage}`);
+    }
+
+    return requestPageScan(tab.id);
+  }
+}
+
 async function scanCurrentPage() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -181,7 +222,7 @@ async function scanCurrentPage() {
       throw new Error("无法获取当前页面");
     }
 
-    const response = await chrome.tabs.sendMessage(tab.id, { type: "RAIN_SCAN_PAGE" });
+    const response = await requestPageScanWithInjection(tab);
     const resources = response?.resources || [];
     renderResources(resources);
     setStatus(`发现 ${resources.length} 个可导入资源`);
