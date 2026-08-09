@@ -70,6 +70,49 @@ async function listWritableIssues() {
   return issues.filter((issue) => issue?.can_write === true);
 }
 
+async function getRainIssue(issueCode) {
+  const rainServerUrl = await getRainServerUrl();
+  const response = await fetch(`${rainServerUrl}/api/issues/${encodeURIComponent(issueCode)}`, {
+    method: "GET",
+    credentials: "include"
+  });
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new Error(`Load issue files failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
+  }
+
+  return response.json();
+}
+
+async function listRainIssueUploadedFileNames(issueCode) {
+  const issue = await getRainIssue(issueCode);
+  const names = new Set();
+  const bundles = Array.isArray(issue?.log_bundles) ? issue.log_bundles : [];
+  const rainServerUrl = await getRainServerUrl();
+
+  await Promise.all(bundles
+    .filter((bundle) => bundle?.hash && bundle?.status?.upload_status === "READY")
+    .map(async (bundle) => {
+      const response = await fetch(
+        `${rainServerUrl}/api/files/v1/${encodeURIComponent(bundle.hash)}/files/root`,
+        { method: "GET", credentials: "include" }
+      );
+      if (!response.ok) {
+        const detail = await readErrorDetail(response);
+        throw new Error(`Load bundle files failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
+      }
+      const tree = await response.json();
+      for (const file of (tree?.children || [])) {
+        if (file?.meta?.kind === "uploaded_file" && file.name) {
+          names.add(String(file.name).trim().toLowerCase());
+        }
+      }
+    }));
+
+  return names;
+}
+
 async function createIssue(issueCode, issueName) {
   const rainServerUrl = await getRainServerUrl();
   const response = await fetch(`${rainServerUrl}/api/issues`, {

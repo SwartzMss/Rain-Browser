@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rain Browser 设置</title>
+  <style>
+    :root { color-scheme: dark; --bg: #101827; --panel: #182337; --line: #31415d; --text: #eef4ff; --muted: #9eacc3; --blue: #65a7ff; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; padding: 48px 20px; font-family: Inter, Segoe UI, Arial, sans-serif; color: var(--text); background: radial-gradient(circle at 80% 0, #263d62 0, var(--bg) 42%); }
+    main { max-width: 650px; margin: 0 auto; padding: 34px; background: #182337e8; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 20px 60px #0005; }
+    .title { display: flex; align-items: center; gap: 13px; }
+    .logo { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; color: #102039; background: linear-gradient(135deg, #9dd0ff, #4f91ff); font-weight: 800; font-size: 20px; }
+    h1 { margin: 0; font-size: 24px; }
+    p { margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    label { display: block; margin-top: 30px; margin-bottom: 8px; font-size: 13px; font-weight: 650; }
+    input, button { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+    input { width: 100%; color: var(--text); background: #121d30; outline: none; }
+    input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #65a7ff22; }
+    .actions { display: flex; gap: 10px; margin-top: 18px; }
+    button { cursor: pointer; color: var(--text); background: #24324a; }
+    button.primary { color: #102039; background: linear-gradient(135deg, #9dd0ff, #4f91ff); border-color: #80baff; font-weight: 650; }
+    #status { min-height: 20px; margin-top: 16px; color: var(--muted); font-size: 13px; }
+    .contact { margin-top: 34px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .contact h2 { margin: 0 0 6px; font-size: 14px; }
+    .contact p { margin: 0; font-size: 13px; }
+    .contact a { color: var(--blue); word-break: break-all; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="title"><div class="logo">R</div><h1>Rain Browser 设置</h1></div>
+    <p>配置 Rain 服务地址。主界面会使用这里保存的地址进行登录检查、Issue 查询和文件导入。</p>
+    <label for="serverUrl">Rain server URL</label>
+    <input id="serverUrl" type="url" placeholder="http://127.0.0.1:8080" />
+    <div class="actions">
+      <button id="save" class="primary" type="button">保存设置</button>
+      <button id="test" type="button">测试连接</button>
+      <button id="openLogs" type="button">后台日志</button>
+    </div>
+    <div id="status" role="status"></div>
+    <section class="contact" aria-label="联系与项目地址">
+      <h2>联系与项目地址</h2>
+      <p>反馈问题、提交建议或查看源代码：<a href="https://github.com/SwartzMss/Rain-Browser" target="_blank" rel="noreferrer">github.com/SwartzMss/Rain-Browser</a></p>
+    </section>
+  </main>
+  <script src="rain-api.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

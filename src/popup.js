@@ -1,12 +1,13 @@
 let currentResources = [];
 let writableIssues = [];
 let allIssues = [];
+let existingFileNames = new Set();
+let existingFilesLoaded = false;
 
 const statusEl = document.getElementById("status");
 const resourcesEl = document.getElementById("resources");
 const importButton = document.getElementById("importButton");
-const serverUrlInput = document.getElementById("serverUrl");
-const saveServerButton = document.getElementById("saveServer");
+const openOptionsButton = document.getElementById("openOptions");
 const issueSelect = document.getElementById("issueSelect");
 const issueHint = document.getElementById("issueHint");
 const newIssueFields = document.getElementById("newIssueFields");
@@ -16,6 +17,27 @@ const newIssueNameInput = document.getElementById("newIssueName");
 function setStatus(message) {
   statusEl.textContent = message;
 }
+
+function renderImportJob(job) {
+  if (!job) return;
+  if (job.status === "running" || job.status === "queued") {
+    importButton.disabled = true;
+    setStatus(`后台导入 ${job.completed}/${job.total}${job.currentFileName ? `：${job.currentFileName}` : ""}`);
+  } else if (job.status === "completed") {
+    importButton.disabled = false;
+    setStatus(`导入完成：${job.issueCode}`);
+    refreshIssueTargets();
+  } else if (job.status === "failed") {
+    importButton.disabled = false;
+    setStatus(`导入失败：${job.error}`);
+  }
+}
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && changes.rainImportJob?.newValue) {
+    renderImportJob(changes.rainImportJob.newValue);
+  }
+});
 
 function renderResources(resources) {
   currentResources = resources;
@@ -33,7 +55,7 @@ function renderResources(resources) {
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = true;
+    checkbox.checked = !existingFileNames.has(resource.fileName.trim().toLowerCase());
     checkbox.dataset.index = String(index);
 
     const content = document.createElement("div");
@@ -53,6 +75,24 @@ function renderResources(resources) {
   });
 
   importButton.disabled = false;
+}
+
+async function refreshExistingFileNames() {
+  existingFileNames = new Set();
+  if (issueSelect.value === "__new__") {
+    existingFilesLoaded = true;
+    renderResources(currentResources);
+    return;
+  }
+
+  try {
+    existingFileNames = await listRainIssueUploadedFileNames(issueSelect.value);
+    existingFilesLoaded = true;
+  } catch (error) {
+    existingFilesLoaded = false;
+    setStatus(`无法读取 Issue 文件列表，已停止上传：${error.message}`);
+  }
+  renderResources(currentResources);
 }
 
 function getSelectedResources() {
@@ -278,18 +318,10 @@ issueSelect.addEventListener("change", () => {
   } else {
     issueHint.textContent = `将上传到你的 Issue：${issueSelect.value}`;
   }
+  refreshExistingFileNames();
 });
 
-saveServerButton.addEventListener("click", async () => {
-  try {
-    const savedUrl = await setRainServerUrl(serverUrlInput.value);
-    serverUrlInput.value = savedUrl;
-    setStatus("Rain 地址已保存");
-    await refreshIssueTargets();
-  } catch (error) {
-    setStatus(error.message);
-  }
-});
+openOptionsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
 
 importButton.addEventListener("click", async () => {
   const selected = getSelectedResources();
@@ -303,24 +335,40 @@ importButton.addEventListener("click", async () => {
   try {
     const user = await requireRainLogin();
     const issueCode = await resolveTargetIssue();
-    setStatus(`已登录 ${user.username}，目标 Issue：${issueCode}`);
-
-    for (let index = 0; index < selected.length; index += 1) {
-      setStatus(`正在下载并上传 ${index + 1}/${selected.length}: ${selected[index].fileName}`);
-      await uploadBrowserFile(issueCode, selected[index]);
+    await refreshExistingFileNames();
+    if (!existingFilesLoaded) {
+      throw new Error("无法确认目标 Issue 中已有的文件，请检查 Rain 连接后重试");
     }
-
-    setStatus(`导入完成: ${issueCode}`);
-    await refreshIssueTargets();
+    const duplicateNames = selected
+      .filter((resource) => existingFileNames.has(resource.fileName.trim().toLowerCase()))
+      .map((resource) => resource.fileName);
+    if (duplicateNames.length) {
+      setStatus(`已跳过 ${duplicateNames.length} 个 Issue 中已有的同名文件`);
+    }
+    const uploadable = selected.filter((resource) => !existingFileNames.has(resource.fileName.trim().toLowerCase()));
+    if (!uploadable.length) {
+      setStatus("选中的文件都已存在于目标 Issue，无需重复上传");
+      return;
+    }
+    setStatus(`已登录 ${user.username}，正在启动后台导入…`);
+    const response = await chrome.runtime.sendMessage({
+      type: "RAIN_START_IMPORT",
+      issueCode,
+      resources: uploadable
+    });
+    if (!response?.ok) {
+      throw new Error(response?.error || "无法启动后台导入");
+    }
+    setStatus(`后台导入已启动，共 ${uploadable.length} 个文件；关闭窗口后仍会继续`);
   } catch (error) {
     setStatus(`导入失败: ${error.message}`);
-  } finally {
     importButton.disabled = false;
   }
 });
 
 (async function init() {
-  serverUrlInput.value = await getRainServerUrl();
   await scanCurrentPage();
   await refreshIssueTargets();
+  const stored = await chrome.storage.local.get("rainImportJob");
+  renderImportJob(stored.rainImportJob);
 })();

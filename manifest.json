@@ -1,14 +1,30 @@
 {
   "manifest_version": 3,
   "name": "Rain Browser",
-  "version": "0.2.0",
+  "version": "0.0.1",
   "description": "Import web-hosted logs and diagnostic files directly into Rain.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwI+bVB+Bqlp7P+2XyUspn6d6ted3V8JqEliT15xYTTfAIag7jv8mvgoG20nQRxptLVpC8GEC5n/n+URLQrZlw2YWMPF48TINnXgOnP5hf/Fo4IgL759PI6uSnw2LrzL2oPBxsmgAZOo6f7H+drTWEJc6x+NiFmTEmHfHY2U9qfcfoaVNn8dQYmrSvw1EP8Rup8xf6EMNUmCzKKi1J6OwGB7jSxvxjjy6TTil/m0S2+8g12lzE7u1GG9snvTtirg0x1VLIjgsGQWSzPIPEAfRGO9zJTbqADieQLwgVtixYiLJs31JhG/L03rUEZG15J3LYqFkMwsSKlvflUGRu+fpMQIDAQAB",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_title": "Rain Browser",
-    "default_popup": "src/popup.html"
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "icons/rain-browser-16.png",
+      "32": "icons/rain-browser-32.png",
+      "48": "icons/rain-browser-48.png",
+      "128": "icons/rain-browser-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/rain-browser-16.png",
+    "32": "icons/rain-browser-32.png",
+    "48": "icons/rain-browser-48.png",
+    "128": "icons/rain-browser-128.png"
+  },
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
   },
   "background": {
     "service_worker": "src/background.js"

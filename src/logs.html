@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rain Browser 后台日志</title>
+  <style>
+    :root { color-scheme: dark; --bg: #101827; --panel: #182337; --panel-2: #202e46; --line: #31415d; --text: #eef4ff; --muted: #9eacc3; --blue: #65a7ff; --danger: #ff8d9b; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; padding: 32px 20px; font-family: Inter, Segoe UI, Arial, sans-serif; color: var(--text); background: radial-gradient(circle at 80% 0, #263d62 0, var(--bg) 42%); }
+    main { max-width: 900px; margin: 0 auto; padding: 28px; background: #182337e8; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 20px 60px #0005; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+    h1 { margin: 0; font-size: 22px; }
+    .description { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+    button { padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--panel-2); cursor: pointer; }
+    button.primary { color: #102039; background: linear-gradient(135deg, #9dd0ff, #4f91ff); border-color: #80baff; font-weight: 650; }
+    button.danger { color: var(--danger); }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+    .summary { margin: 12px 0; color: var(--muted); font-size: 13px; }
+    .log-list { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; }
+    .log-row { display: grid; grid-template-columns: 28px 155px 82px 1fr; gap: 12px; align-items: start; padding: 12px; border-bottom: 1px solid var(--line); }
+    .log-row:last-child { border-bottom: 0; }
+    .log-time, .log-meta { color: var(--muted); font-size: 12px; }
+    .log-message { min-width: 0; font-size: 13px; word-break: break-word; }
+    .log-details { margin-top: 4px; color: var(--muted); font-size: 11px; word-break: break-word; }
+    .level { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .level.error { color: var(--danger); }
+    .level.info { color: var(--blue); }
+    .empty { padding: 42px 16px; color: var(--muted); text-align: center; }
+    @media (max-width: 700px) { .log-row { grid-template-columns: 28px 1fr 70px; } .log-time { grid-column: 2; } .log-message { grid-column: 2 / -1; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>后台日志</h1><p class="description">记录扩展后台的导入、上传和错误事件。日志只保存在当前浏览器中。</p></div>
+      <div class="toolbar">
+        <button id="selectAll" type="button">全选</button>
+        <button id="download" class="primary" type="button" disabled>下载选中日志</button>
+        <button id="clear" class="danger" type="button">清空</button>
+      </div>
+    </header>
+    <div id="summary" class="summary"></div>
+    <div id="logs" class="log-list"></div>
+  </main>
+  <script src="logs.js"></script>
+</body>
+</html>
