@@ -74,6 +74,62 @@
     return "";
   }
 
+  function downloadUuid(url) {
+    try {
+      return new URL(url, window.location.href).searchParams.get("uuid") || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function findUuidScopedSiblingFileName(anchor, url) {
+    const parent = anchor.parentElement;
+    if (!parent) {
+      return "";
+    }
+
+    const uuid = downloadUuid(url);
+    const parentName = (parent.getAttribute("name") || "").trim();
+
+    // This page structure binds one attachment to one direct container:
+    // <div name="UUID">
+    //   <a onclick="viewAttachment('UUID', this)">real-name.zip - size</a>
+    //   <a href="fileStorage/download?uuid=UUID" title="下载">...</a>
+    // </div>
+    // If both UUIDs are available they must match before sibling text is trusted.
+    if (uuid && parentName && uuid !== parentName) {
+      return "";
+    }
+
+    const candidates = new Set();
+    for (const sibling of parent.children) {
+      if (sibling === anchor) {
+        continue;
+      }
+
+      if (uuid && !parentName) {
+        const onclick = sibling.getAttribute?.("onclick") || "";
+        const siblingName = sibling.getAttribute?.("name") || "";
+        if (!onclick.includes(uuid) && siblingName !== uuid) {
+          continue;
+        }
+      }
+
+      for (const fileName of extractDiagnosticFileNames(sibling.textContent)) {
+        candidates.add(fileName);
+      }
+
+      for (const attribute of ["title", "aria-label", "data-filename", "data-file-name", "data-name"]) {
+        const fileName = extractDiagnosticFileName(sibling.getAttribute?.(attribute));
+        if (fileName) {
+          candidates.add(fileName);
+        }
+      }
+    }
+
+    return candidates.size === 1 ? [...candidates][0] : "";
+  }
+
   function findNearbyFileName(anchor) {
     const tableRow = anchor.closest("tr");
     if (tableRow) {
@@ -172,12 +228,15 @@
       return pathName;
     }
 
-    // Download endpoints such as /fileStorage/download?uuid=... do not expose a
-    // trustworthy filename in the URL. Do not guess from a shared parent node:
-    // different download links can otherwise all inherit the same first filename.
-    // Use a URL-derived unique provisional name and let Content-Disposition from
-    // the real download response decide the final uploaded filename.
     if (explicitDownload) {
+      const siblingFileName = findUuidScopedSiblingFileName(anchor, url);
+      if (siblingFileName) {
+        return siblingFileName;
+      }
+
+      // If this download endpoint does not expose a trustworthy one-to-one
+      // sibling filename, retain a unique URL-derived name. The real download
+      // response can still replace it via Content-Disposition before upload.
       return provisionalDownloadName(url);
     }
 
