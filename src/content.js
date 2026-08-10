@@ -18,11 +18,15 @@
     ".dump"
   ];
 
+  function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
   const FILE_NAME_PATTERN = new RegExp(
     `([^\\s<>"'=\\/\\\\]+(?:${RAIN_FILE_EXTENSIONS
       .slice()
       .sort((left, right) => right.length - left.length)
-      .map((ext) => ext.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"))
+      .map(escapeRegExp)
       .join("|")}))(?=$|[\\s<>"'&,;:)\\]])`,
     "i"
   );
@@ -95,7 +99,7 @@
       for (const key of ["filename", "fileName", "name"]) {
         const value = parsed.searchParams.get(key);
         if (value) {
-          return decodeURIComponent(value).trim();
+          return value.trim();
         }
       }
 
