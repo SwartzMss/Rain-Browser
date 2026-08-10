@@ -36,25 +36,39 @@ async function runImportJob(job) {
 
     for (let index = 0; index < job.resources.length; index += 1) {
       const resource = job.resources[index];
+      const commonDetails = {
+        issueCode: job.issueCode,
+        index: index + 1,
+        total: job.resources.length,
+        fileName: resource.fileName || "",
+        sourceUrl: resource.url || "",
+        rawHref: resource.rawHref || "",
+        baseUri: resource.baseUri || "",
+        uuid: resource.uuid || "",
+        parentName: resource.parentName || "",
+        sourceType: resource.sourceType || "",
+        pageUrl: resource.pageUrl || ""
+      };
+
       await saveImportJob({
         ...job,
         status: "running",
         completed: index,
         currentFileName: resource.fileName
       });
-      await recordLog("info", "upload_started", `开始上传 ${resource.fileName}`, {
-        issueCode: job.issueCode,
-        fileName: resource.fileName,
-        index: index + 1,
-        total: job.resources.length
-      });
-      await uploadBrowserFile(job.issueCode, resource);
-      await recordLog("info", "upload_completed", `上传完成 ${resource.fileName}`, {
-        issueCode: job.issueCode,
-        fileName: resource.fileName,
-        index: index + 1,
-        total: job.resources.length
-      });
+      await recordLog("info", "upload_started", `开始处理 ${resource.fileName}`, commonDetails);
+
+      const transferLogger = async (level, event, message, details = {}) => {
+        await recordLog(level, event, message, {
+          issueCode: job.issueCode,
+          index: index + 1,
+          total: job.resources.length,
+          ...details
+        });
+      };
+
+      await uploadBrowserFile(job.issueCode, resource, transferLogger);
+      await recordLog("info", "upload_completed", `上传完成 ${resource.fileName}`, commonDetails);
       await saveImportJob({
         ...job,
         status: "running",
@@ -74,6 +88,7 @@ async function runImportJob(job) {
       total: job.resources.length
     });
   } catch (error) {
+    const failedResource = job.resources[job.completed] || {};
     await saveImportJob({
       ...job,
       status: "failed",
@@ -81,7 +96,14 @@ async function runImportJob(job) {
     });
     await recordLog("error", "job_failed", error.message || String(error), {
       issueCode: job.issueCode,
-      fileName: job.resources[job.completed]?.fileName || ""
+      fileName: failedResource.fileName || "",
+      sourceUrl: failedResource.url || "",
+      rawHref: failedResource.rawHref || "",
+      baseUri: failedResource.baseUri || "",
+      uuid: failedResource.uuid || "",
+      parentName: failedResource.parentName || "",
+      sourceType: failedResource.sourceType || "",
+      pageUrl: failedResource.pageUrl || ""
     });
   }
 }
