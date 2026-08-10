@@ -22,18 +22,29 @@
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
-  const FILE_NAME_PATTERN = new RegExp(
-    `([^\\s<>"'=\\/\\\\]+(?:${RAIN_FILE_EXTENSIONS
-      .slice()
-      .sort((left, right) => right.length - left.length)
-      .map(escapeRegExp)
-      .join("|")}))(?=$|[\\s<>"'&,;:)\\]])`,
-    "i"
-  );
+  const FILE_NAME_PATTERN_SOURCE = `([^\\s<>"'=\\/\\\\]+(?:${RAIN_FILE_EXTENSIONS
+    .slice()
+    .sort((left, right) => right.length - left.length)
+    .map(escapeRegExp)
+    .join("|")}))(?=$|[\\s<>"'&,;:)\\]])`;
+
+  const FILE_NAME_PATTERN = new RegExp(FILE_NAME_PATTERN_SOURCE, "i");
 
   function extractDiagnosticFileName(text) {
     const match = String(text || "").match(FILE_NAME_PATTERN);
     return match?.[1]?.trim() || "";
+  }
+
+  function extractDiagnosticFileNames(text) {
+    const names = new Set();
+    const pattern = new RegExp(FILE_NAME_PATTERN_SOURCE, "ig");
+    for (const match of String(text || "").matchAll(pattern)) {
+      const fileName = match?.[1]?.trim();
+      if (fileName) {
+        names.add(fileName);
+      }
+    }
+    return [...names];
   }
 
   function findNearbyFileName(anchor) {
@@ -45,19 +56,33 @@
       }
     }
 
-    const semanticContainer = anchor.closest(
-      "tr, li, .file, .file-row, .attachment, .attachment-row, .upload, .upload-row"
-    );
-    const semanticFileName = extractDiagnosticFileName(semanticContainer?.textContent);
-    if (semanticFileName) {
-      return semanticFileName;
-    }
-
-    let parent = anchor.parentElement;
-    for (let depth = 0; parent && depth < 3; depth += 1, parent = parent.parentElement) {
-      const fileName = extractDiagnosticFileName(parent.textContent);
+    for (const value of [
+      anchor.textContent,
+      anchor.getAttribute("title"),
+      anchor.getAttribute("aria-label")
+    ]) {
+      const fileName = extractDiagnosticFileName(value);
       if (fileName) {
         return fileName;
+      }
+    }
+
+    const tableRow = anchor.closest("tr");
+    if (tableRow) {
+      const names = extractDiagnosticFileNames(tableRow.textContent);
+      if (names.length === 1) {
+        return names[0];
+      }
+      return "";
+    }
+
+    const semanticContainer = anchor.closest(
+      "li, .file, .file-row, .attachment, .attachment-row, .upload, .upload-row"
+    );
+    if (semanticContainer) {
+      const names = extractDiagnosticFileNames(semanticContainer.textContent);
+      if (names.length === 1) {
+        return names[0];
       }
     }
 
