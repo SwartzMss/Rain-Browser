@@ -91,12 +91,6 @@
     const uuid = downloadUuid(url);
     const parentName = (parent.getAttribute("name") || "").trim();
 
-    // This page structure binds one attachment to one direct container:
-    // <div name="UUID">
-    //   <a onclick="viewAttachment('UUID', this)">real-name.zip - size</a>
-    //   <a href="fileStorage/download?uuid=UUID" title="下载">...</a>
-    // </div>
-    // If both UUIDs are available they must match before sibling text is trusted.
     if (uuid && parentName && uuid !== parentName) {
       return "";
     }
@@ -234,9 +228,6 @@
         return siblingFileName;
       }
 
-      // If this download endpoint does not expose a trustworthy one-to-one
-      // sibling filename, retain a unique URL-derived name. The real download
-      // response can still replace it via Content-Disposition before upload.
       return provisionalDownloadName(url);
     }
 
@@ -258,8 +249,6 @@
   }
 
   function resolvedAnchorUrl(anchor) {
-    // anchor.href is resolved by the browser using document.baseURI, including
-    // any <base href="..."> element. This must match what a real click uses.
     const browserResolvedUrl = String(anchor.href || "").trim();
     if (browserResolvedUrl) {
       return browserResolvedUrl;
@@ -295,6 +284,10 @@
       seen.add(url);
       resources.push({
         url,
+        rawHref,
+        baseUri: document.baseURI,
+        uuid: downloadUuid(url),
+        parentName: (anchor.parentElement?.getAttribute("name") || "").trim(),
         fileName,
         text: anchor.textContent.trim(),
         sourceType: explicitDownload ? "download-link" : "file-link",
