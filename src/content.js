@@ -47,10 +47,14 @@
     return [...names];
   }
 
-  function findNearbyFileName(anchor) {
+  function hasDiagnosticExtension(value) {
+    const target = String(value || "").toLowerCase();
+    return RAIN_FILE_EXTENSIONS.some((ext) => target.includes(ext));
+  }
+
+  function findDirectFileName(anchor) {
     for (const attribute of ["data-filename", "data-file-name", "data-name"]) {
-      const value = anchor.getAttribute(attribute);
-      const fileName = extractDiagnosticFileName(value);
+      const fileName = extractDiagnosticFileName(anchor.getAttribute(attribute));
       if (fileName) {
         return fileName;
       }
@@ -67,6 +71,10 @@
       }
     }
 
+    return "";
+  }
+
+  function findNearbyFileName(anchor) {
     const tableRow = anchor.closest("tr");
     if (tableRow) {
       const names = extractDiagnosticFileNames(tableRow.textContent);
@@ -139,10 +147,38 @@
     return "download";
   }
 
+  function pathFileName(url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      return decodeURIComponent(parsed.pathname.split("/").pop() || "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
   function normalizeFileName(url, anchor, explicitDownload) {
     const downloadName = anchor.getAttribute("download");
     if (downloadName) {
       return downloadName.trim();
+    }
+
+    const directFileName = findDirectFileName(anchor);
+    if (directFileName) {
+      return directFileName;
+    }
+
+    const pathName = pathFileName(url);
+    if (pathName && hasDiagnosticExtension(pathName)) {
+      return pathName;
+    }
+
+    // Download endpoints such as /fileStorage/download?uuid=... do not expose a
+    // trustworthy filename in the URL. Do not guess from a shared parent node:
+    // different download links can otherwise all inherit the same first filename.
+    // Use a URL-derived unique provisional name and let Content-Disposition from
+    // the real download response decide the final uploaded filename.
+    if (explicitDownload) {
+      return provisionalDownloadName(url);
     }
 
     const nearbyFileName = findNearbyFileName(anchor);
@@ -150,27 +186,16 @@
       return nearbyFileName;
     }
 
-    try {
-      const parsed = new URL(url, window.location.href);
-      const pathName = decodeURIComponent(parsed.pathname.split("/").pop() || "");
-      if (pathName && (!explicitDownload || pathName.toLowerCase() !== "download")) {
-        return pathName;
-      }
-    } catch (_) {
-      // Ignore malformed URLs and fall back to anchor text.
+    if (pathName) {
+      return pathName;
     }
 
     const anchorText = anchor.textContent.trim();
-    if (anchorText) {
-      return anchorText;
-    }
-
-    return explicitDownload ? provisionalDownloadName(url) : "unknown-file";
+    return anchorText || "unknown-file";
   }
 
   function looksLikeDiagnosticFile(url, fileName) {
-    const target = `${url} ${fileName}`.toLowerCase();
-    return RAIN_FILE_EXTENSIONS.some((ext) => target.includes(ext));
+    return hasDiagnosticExtension(`${url} ${fileName}`);
   }
 
   function scanPage() {
