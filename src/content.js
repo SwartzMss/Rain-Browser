@@ -76,7 +76,7 @@
 
   function downloadUuid(url) {
     try {
-      return new URL(url, window.location.href).searchParams.get("uuid") || "";
+      return new URL(url).searchParams.get("uuid") || "";
     } catch (_) {
       return "";
     }
@@ -167,7 +167,7 @@
 
     let pathLooksLikeDownload = false;
     try {
-      const parsed = new URL(url, window.location.href);
+      const parsed = new URL(url);
       pathLooksLikeDownload = /(^|\/)download(?:\/|$)/i.test(parsed.pathname);
     } catch (_) {
       // Ignore malformed URLs; other download signals may still identify the link.
@@ -184,7 +184,7 @@
 
   function provisionalDownloadName(url) {
     try {
-      const parsed = new URL(url, window.location.href);
+      const parsed = new URL(url);
       for (const key of ["filename", "fileName", "name"]) {
         const value = parsed.searchParams.get(key);
         if (value) {
@@ -205,7 +205,7 @@
 
   function pathFileName(url) {
     try {
-      const parsed = new URL(url, window.location.href);
+      const parsed = new URL(url);
       return decodeURIComponent(parsed.pathname.split("/").pop() || "").trim();
     } catch (_) {
       return "";
@@ -257,6 +257,18 @@
     return hasDiagnosticExtension(`${url} ${fileName}`);
   }
 
+  function resolvedAnchorUrl(anchor) {
+    // anchor.href is resolved by the browser using document.baseURI, including
+    // any <base href="..."> element. This must match what a real click uses.
+    const browserResolvedUrl = String(anchor.href || "").trim();
+    if (browserResolvedUrl) {
+      return browserResolvedUrl;
+    }
+
+    const rawHref = anchor.getAttribute("href");
+    return new URL(rawHref, document.baseURI).href;
+  }
+
   function scanPage() {
     const seen = new Set();
     const resources = [];
@@ -269,7 +281,7 @@
 
       let url;
       try {
-        url = new URL(rawHref, window.location.href).href;
+        url = resolvedAnchorUrl(anchor);
       } catch (_) {
         return;
       }
