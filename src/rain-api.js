@@ -169,7 +169,11 @@ async function downloadBrowserResource(resource) {
   });
 
   if (!response.ok) {
-    throw new Error(`Browser download failed: HTTP ${response.status}`);
+    const requestedUrl = resource.url || "";
+    const finalUrl = response.url || requestedUrl;
+    throw new Error(
+      `Browser download failed: HTTP ${response.status} - requested=${requestedUrl} - final=${finalUrl}`
+    );
   }
 
   const blob = await response.blob();
