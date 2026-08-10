@@ -162,15 +162,64 @@ function fileNameFromContentDisposition(response) {
   return sanitizeDownloadedFileName(plainMatch?.[1] || plainMatch?.[2] || "");
 }
 
-async function downloadBrowserResource(resource) {
-  const response = await fetch(resource.url, {
-    method: "GET",
-    credentials: "include"
+async function emitTransferLog(logger, level, event, message, details = {}) {
+  if (typeof logger !== "function") {
+    return;
+  }
+
+  try {
+    await logger(level, event, message, details);
+  } catch (error) {
+    console.warn("Rain Browser diagnostic logging failed", error);
+  }
+}
+
+async function downloadBrowserResource(resource, logger) {
+  const requestedUrl = resource.url || "";
+  await emitTransferLog(logger, "info", "download_request", "开始请求源文件", {
+    requestedUrl,
+    scanFileName: resource.fileName || "",
+    rawHref: resource.rawHref || "",
+    baseUri: resource.baseUri || "",
+    uuid: resource.uuid || "",
+    sourceType: resource.sourceType || "",
+    pageUrl: resource.pageUrl || ""
   });
 
+  let response;
+  try {
+    response = await fetch(requestedUrl, {
+      method: "GET",
+      credentials: "include"
+    });
+  } catch (error) {
+    await emitTransferLog(logger, "error", "download_network_error", "源文件请求发生网络错误", {
+      requestedUrl,
+      error: error.message || String(error)
+    });
+    throw error;
+  }
+
+  const finalUrl = response.url || requestedUrl;
+  const contentType = response.headers.get("content-type") || "";
+  const contentDisposition = response.headers.get("content-disposition") || "";
+  await emitTransferLog(
+    logger,
+    response.ok ? "info" : "error",
+    "download_response",
+    `源文件响应 HTTP ${response.status}`,
+    {
+      requestedUrl,
+      finalUrl,
+      status: response.status,
+      statusText: response.statusText || "",
+      redirected: response.redirected,
+      contentType,
+      contentDisposition
+    }
+  );
+
   if (!response.ok) {
-    const requestedUrl = resource.url || "";
-    const finalUrl = response.url || requestedUrl;
     throw new Error(
       `Browser download failed: HTTP ${response.status} - requested=${requestedUrl} - final=${finalUrl}`
     );
@@ -179,26 +228,68 @@ async function downloadBrowserResource(resource) {
   const blob = await response.blob();
   const responseFileName = fileNameFromContentDisposition(response);
   const fileName = responseFileName || resource.fileName || "download";
+  await emitTransferLog(logger, "info", "download_prepared", "源文件已读取，准备上传 Rain", {
+    requestedUrl,
+    finalUrl,
+    scanFileName: resource.fileName || "",
+    responseFileName,
+    finalFileName: fileName,
+    fileSize: blob.size,
+    contentType: blob.type || contentType || "application/octet-stream"
+  });
+
   return new File([blob], fileName, {
     type: blob.type || "application/octet-stream"
   });
 }
 
-async function uploadBrowserFile(issueCode, resource) {
+async function uploadBrowserFile(issueCode, resource, logger) {
   const rainServerUrl = await getRainServerUrl();
-  const file = await downloadBrowserResource(resource);
+  const file = await downloadBrowserResource(resource, logger);
   const form = new FormData();
   form.append("files", file);
 
-  const response = await fetch(
-    `${rainServerUrl}/api/issues/${encodeURIComponent(issueCode)}/uploads`,
-    {
+  const uploadUrl = `${rainServerUrl}/api/issues/${encodeURIComponent(issueCode)}/uploads`;
+  await emitTransferLog(logger, "info", "rain_upload_request", "开始上传到 Rain", {
+    uploadUrl,
+    issueCode,
+    finalFileName: file.name,
+    fileSize: file.size,
+    contentType: file.type || "application/octet-stream"
+  });
+
+  let response;
+  try {
+    response = await fetch(uploadUrl, {
       method: "POST",
       credentials: "include",
       headers: {
         [RAIN_BROWSER_HEADER]: "1"
       },
       body: form
+    });
+  } catch (error) {
+    await emitTransferLog(logger, "error", "rain_upload_network_error", "Rain 上传发生网络错误", {
+      uploadUrl,
+      issueCode,
+      finalFileName: file.name,
+      error: error.message || String(error)
+    });
+    throw error;
+  }
+
+  await emitTransferLog(
+    logger,
+    response.ok ? "info" : "error",
+    "rain_upload_response",
+    `Rain 上传响应 HTTP ${response.status}`,
+    {
+      uploadUrl,
+      issueCode,
+      finalFileName: file.name,
+      status: response.status,
+      statusText: response.statusText || "",
+      contentType: response.headers.get("content-type") || ""
     }
   );
 
@@ -207,6 +298,6 @@ async function uploadBrowserFile(issueCode, resource) {
     throw new Error(`Upload failed: HTTP ${response.status}${detail ? ` - ${detail}` : ""}`);
   }
 
-  const contentType = response.headers.get("content-type") || "";
-  return contentType.includes("application/json") ? response.json() : { ok: true };
+  const responseContentType = response.headers.get("content-type") || "";
+  return responseContentType.includes("application/json") ? response.json() : { ok: true };
 }
