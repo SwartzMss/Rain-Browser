@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Rain Browser",
-  "version": "0.0.6",
+  "version": "0.0.1",
   "description": "Import web-hosted logs and diagnostic files directly into Rain.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwI+bVB+Bqlp7P+2XyUspn6d6ted3V8JqEliT15xYTTfAIag7jv8mvgoG20nQRxptLVpC8GEC5n/n+URLQrZlw2YWMPF48TINnXgOnP5hf/Fo4IgL759PI6uSnw2LrzL2oPBxsmgAZOo6f7H+drTWEJc6x+NiFmTEmHfHY2U9qfcfoaVNn8dQYmrSvw1EP8Rup8xf6EMNUmCzKKi1J6OwGB7jSxvxjjy6TTil/m0S2+8g12lzE7u1GG9snvTtirg0x1VLIjgsGQWSzPIPEAfRGO9zJTbqADieQLwgVtixYiLJs31JhG/L03rUEZG15J3LYqFkMwsSKlvflUGRu+fpMQIDAQAB",
   "permissions": ["activeTab", "storage", "scripting"],
