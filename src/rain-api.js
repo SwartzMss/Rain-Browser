@@ -136,6 +136,32 @@ async function createIssue(issueCode, issueName) {
   return response.json();
 }
 
+function sanitizeDownloadedFileName(value) {
+  const normalized = String(value || "").trim().replace(/^['"]|['"]$/g, "");
+  return normalized.split(/[\\/]/).pop()?.trim() || "";
+}
+
+function fileNameFromContentDisposition(response) {
+  const contentDisposition = response.headers.get("content-disposition") || "";
+  if (!contentDisposition) {
+    return "";
+  }
+
+  const encodedMatch = contentDisposition.match(/filename\*\s*=\s*([^;]+)/i);
+  if (encodedMatch) {
+    let encoded = encodedMatch[1].trim().replace(/^['"]|['"]$/g, "");
+    encoded = encoded.replace(/^UTF-8''/i, "");
+    try {
+      return sanitizeDownloadedFileName(decodeURIComponent(encoded));
+    } catch (_) {
+      return sanitizeDownloadedFileName(encoded);
+    }
+  }
+
+  const plainMatch = contentDisposition.match(/filename\s*=\s*(?:"([^"]+)"|([^;]+))/i);
+  return sanitizeDownloadedFileName(plainMatch?.[1] || plainMatch?.[2] || "");
+}
+
 async function downloadBrowserResource(resource) {
   const response = await fetch(resource.url, {
     method: "GET",
@@ -147,7 +173,9 @@ async function downloadBrowserResource(resource) {
   }
 
   const blob = await response.blob();
-  return new File([blob], resource.fileName, {
+  const responseFileName = fileNameFromContentDisposition(response);
+  const fileName = responseFileName || resource.fileName || "download";
+  return new File([blob], fileName, {
     type: blob.type || "application/octet-stream"
   });
 }
